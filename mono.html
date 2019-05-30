@@ -1,0 +1,161 @@
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<script id="worker1" type="javascript/worker">
+onmessage = function(event) {
+    var n = event.data.from;
+    while (n < event.data.to) {
+        n += 1;
+        if(isPrime(n)) {
+            // found a prime!
+            postMessage(n);
+        }
+    }
+};
+
+function isPrime(number) {
+    for (var i = 2; i <= Math.sqrt(number); i += 1){
+        if (number % i == 0){
+            return false;
+        }
+    }
+    return true;
+}
+</script>
+<script type = "text/javascript">
+var OCCUPIED = 1; //метка "поле бьётся"
+var FREE = 0; //метка "поле не бьётся"
+var ISHERE = -1; //метка "ферзь тут"
+var OUTPUT = 1; //флаг "показать все решения"
+var LOW_N = 4;
+var HIGH_N = 11; //минимальный и максимальный размеры доски
+var N = 8; //размер доски по умолчанию
+var Current = 0; //номер варианта решения для показа
+var q; //будущие решения
+
+function Queen(N) { //Реализация проблемы об N ферзях
+    this.N = N;
+    this.columns = new Array(this.N); //столбцы
+    var numberOfDiagonals = 2 * this.N - 1; //число диагоналей
+    this.diagonals1 = new Array(numberOfDiagonals); //диагонали доски
+    this.diagonals2 = new Array(numberOfDiagonals);
+    this.solutions = new Array(); //решения
+    for (var index = 0; index < numberOfDiagonals; ++index) {
+        if (index < this.N) this.columns[index] = ISHERE;
+        this.diagonals1[index] = FREE;
+        this.diagonals2[index] = FREE;
+    }
+
+    this.run = function () { //метод для запуска поиска
+        this.calculate(0);
+    }
+
+    this.calculate = function (row) { //метод для поиска всех возможных решений
+        for (var column = 0; column < this.N; ++column) {
+            if (this.columns[column] >= 0) continue; //текущий столбец бьётся, продолжить
+            var thisDiag1 = row + column;
+            if (this.diagonals1[thisDiag1] == OCCUPIED) continue; //диагональ '\' для текущих строки и столбца бьётся, продолжить
+            var thisDiag2 = this.N - 1 - row + column;
+            if (this.diagonals2[thisDiag2] == OCCUPIED) continue; //диагональ '/' для текущих строки и столбца бьётся, продолжить
+            this.columns[column] = row;
+            this.diagonals1[thisDiag1] = OCCUPIED; //занять диагонали, которые теперь бьются
+            this.diagonals2[thisDiag2] = OCCUPIED;
+            if (row == this.N - 1) {
+                console.log(this.solutions);
+                this.solutions.push(this.columns.slice()); //найдена последняя строка - есть решение
+            }
+            else this.calculate(row + 1); //иначе рекурсия
+            this.columns[column] = ISHERE;
+            this.diagonals1[thisDiag1] = FREE;
+            this.diagonals2[thisDiag2] = FREE;
+        }
+    }
+}
+
+function getline(solution) { //сформировать строку с решением
+    var line = "";
+    for (var j = 0; j < solution.length; ++j) line += "(" + (j + 1) + "," + (solution[j] + 1) + ")";
+    return line;
+}
+
+function putline(text) { //добавить строку в лог
+    document.log_div.log_area.value += text + "\n";
+}
+
+function main(N) { //решить задачу и показать отчёт
+    q = new Queen(N);
+    putline("Размер доски: " + q.N + "x" + q.N);
+    var start = new Date().getTime();
+    q.run();
+    putline("Время вычисления: " + (new Date().getTime() - start) + "мс");
+    putline("Количество решений: " + q.solutions.length);
+    document.log_div.show_button.disabled = false;
+    Current = 0;
+    document.log_div.show_button.value = "Показать (" + (Current + 1) + ")";
+    if (OUTPUT) {
+        for (var i = 0; i < q.solutions.length; ++i) {
+            var solution = getline(q.solutions[i]);
+            putline(solution);
+        }
+    }
+}
+
+function putboard(N) { //метод для рисования шахматной доски на Javascript
+    var s = '<table align="center" cellpadding="0" cellspacing="0" border="1">' + "\n";
+    var color = 'white';
+    if (N % 2) color = 'black';
+    for (var i = 1; i <= N; i++) {
+        s += '<tr>' + "\n";
+        for (var j = 1; j <= N; j++) {
+            s += '<td align="center" valign="middle" width="32" height="32" nowrap style="background:' +
+                color + '; color: red; font-weight: bold;"><span id="board_' + i + '_' + j + '">&nbsp;</span></td>';
+            color = (color == 'white' ? 'black' : 'white');
+        }
+        s += '</tr>' + "\n";
+        color = (N % 2 == 0 ? (i % 2 ? 'black' : 'white') : (i % 2 ? 'white' : 'black'));
+    }
+    s += '</table>';
+    document.getElementById('board_div').innerHTML = s;
+
+}
+
+function click1() { //главная функция
+    var N0 = parseInt(document.log_div.N_select.value);
+    if (!isNaN(N0) && N0 >= LOW_N && N0 <= HIGH_N) N = N0;
+    document.log_div.log_area.value = "";
+    putboard(N);
+    main(N);
+}
+
+function show1() { //показать решения на доске
+    if (document.log_div.show_button.disabled == false) {
+        var solution = getline(q.solutions[Current]);
+        var reg = new RegExp("([0-9]+,[0-9]+)", "g");
+        var fields = solution.match(reg);
+        for (var i = 1; i <= N; i++) for (var j = 1; j <= N; j++) document.getElementById('board_' + i + '_' + j).innerHTML = '&nbsp;';
+        for (var i = 0; i < fields.length; i++) {
+            var xy = fields[i].split(',');
+            document.getElementById('board_' + xy[0] + '_' + xy[1]).innerHTML = '<img src="./5190.gif" alt="">';
+        }
+        if (Current < q.solutions.length - 1) Current++; else Current = 0;
+        document.log_div.show_button.value = "Показать (" + (Current + 1) + ")";
+    }
+}
+
+//вывести форму приложения
+document.writeln(
+    '<div align="center" id="board_div" style="color: red"></div>' + "\n" +
+    '<div align="center">' + "\n" +
+    '<form name="log_div">' + "\n" +
+    ' <textarea name="log_area" rows="10" cols="80" readonly></textarea>' + "\n" +
+    ' <br>N=' + "\n" +
+    ' <select name="N_select">'
+);
+for (var n = LOW_N; n <= HIGH_N; n++)
+    document.writeln('<option value="' + n + '"' + (n == N ? ' selected' : '') + '>' + n);
+document.writeln('</select>');
+document.writeln(
+    '<input type="button" onclick="click1();" value="Выполнить"/>' + "\n" +
+    '<input name="show_button" type="button" onclick="show1();" value="Показать" disabled/></form></div>'
+);
+</script>
+<noscript>
+<div align = "center">Извините, для работы приложения нужен включённый Javascript</div></noscript>

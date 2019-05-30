@@ -1,0 +1,116 @@
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<script type = "text/javascript">
+var LOW_N = 4;
+var HIGH_N = 11; //минимальный и максимальный размеры доски
+var N = 8; //размер доски по умолчанию
+var OUTPUT = 1; //флаг "показать все решения"
+var Current = 0; //номер варианта решения для показа
+var solutions = new Array();
+
+function getline(solution) { //сформировать строку с решением
+    var line = "";
+    for (var j = 0; j < solution.length; ++j) line += "(" + (j + 1) + "," + (solution[j] + 1) + ")";
+    return line;
+}
+
+function putline(text) { //добавить строку в лог
+    document.log_div.log_area.value += text + "\n";
+}
+
+function main(N) { //решить задачу и показать отчёт
+    var start = new Date().getTime();
+    solutions = new Array();
+    var runningWorkers = N;
+    for (var i = 0; i < N; i++) {
+        var worker = new Worker('w.js');
+        worker.onmessage = function (event) {
+            solutions = solutions.concat(event.data);
+            runningWorkers--;
+            if (runningWorkers == 0) {
+                var duration = new Date().getTime() - start;
+                showResult(N, solutions, duration);
+            }                        
+        };
+        worker.postMessage({
+            startColumn: i, 
+            size: N
+        });
+    }
+}
+
+function showResult(N, solutions, duration) {
+    putline("Размер доски: " + N + "x" + N);
+    putline("Время вычисления: " + duration + "мс");
+    putline("Количество решений: " + solutions.length);
+    document.log_div.show_button.disabled = false;
+    Current = 0;
+    document.log_div.show_button.value = "Показать (" + (Current + 1) + ")";
+    if (OUTPUT) {
+        for (var i = 0; i < solutions.length; ++i) {
+            var solution = getline(solutions[i]);
+            putline(solution);
+        }
+    }
+}
+
+function putboard(N) { //метод для рисования шахматной доски на Javascript
+    var s = '<table align="center" cellpadding="0" cellspacing="0" border="1">' + "\n";
+    var color = 'white';
+    if (N % 2) color = 'black';
+    for (var i = 1; i <= N; i++) {
+        s += '<tr>' + "\n";
+        for (var j = 1; j <= N; j++) {
+            s += '<td align="center" valign="middle" width="32" height="32" nowrap style="background:' +
+                color + '; color: red; font-weight: bold;"><span id="board_' + i + '_' + j + '">&nbsp;</span></td>';
+            color = (color == 'white' ? 'black' : 'white');
+        }
+        s += '</tr>' + "\n";
+        color = (N % 2 == 0 ? (i % 2 ? 'black' : 'white') : (i % 2 ? 'white' : 'black'));
+    }
+    s += '</table>';
+    document.getElementById('board_div').innerHTML = s;
+
+}
+
+function click1() { //главная функция
+    var N0 = parseInt(document.log_div.N_select.value);
+    if (!isNaN(N0) && N0 >= LOW_N && N0 <= HIGH_N) N = N0;
+    document.log_div.log_area.value = "";
+    putboard(N);
+    main(N);
+}
+
+function show1() { //показать решения на доске
+    if (document.log_div.show_button.disabled == false) {
+        var solution = getline(solutions[Current]);
+        var reg = new RegExp("([0-9]+,[0-9]+)", "g");
+        var fields = solution.match(reg);
+        for (var i = 1; i <= N; i++) for (var j = 1; j <= N; j++) document.getElementById('board_' + i + '_' + j).innerHTML = '&nbsp;';
+        for (var i = 0; i < fields.length; i++) {
+            var xy = fields[i].split(',');
+            document.getElementById('board_' + xy[0] + '_' + xy[1]).innerHTML='Ф';//.innerHTML = '<img src="./5190.gif" alt="">';
+        }
+        if (Current < solutions.length - 1) Current++; else Current = 0;
+        document.log_div.show_button.value = "Показать (" + (Current + 1) + ")";
+    }
+}
+
+//вывести форму приложения
+document.writeln(
+    '<div align="center" id="board_div" style="color: red"></div>' + "\n" +
+    '<div align="center">' + "\n" +
+    '<form name="log_div">' + "\n" +
+    ' <textarea name="log_area" rows="10" cols="80" readonly></textarea>' + "\n" +
+    ' <br>N=' + "\n" +
+    ' <select name="N_select">'
+);
+for (var n = LOW_N; n <= HIGH_N; n++)
+    document.writeln('<option value="' + n + '"' + (n == N ? ' selected' : '') + '>' + n);
+document.writeln('</select>');
+document.writeln(
+    '<input type="button" onclick="click1();" value="Выполнить"/>' + "\n" +
+    '<input name="show_button" type="button" onclick="show1();" value="Показать" disabled/></form></div>'
+);
+</script>
+<noscript>
+<div align = "center">Извините, для работы приложения нужен включённый Javascript</div></noscript>
